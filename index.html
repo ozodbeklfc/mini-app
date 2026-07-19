@@ -157,82 +157,155 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
+tg.ready();
+tg.expand();
 
-        // Получаем элементы экранов
-        const signinScreen = document.getElementById('signin-screen');
-        const signupScreen = document.getElementById('signup-screen');
-        const mainScreen = document.getElementById('main-screen');
+// Адрес нашего будущего локального бэкенда (когда запустим ngrok для бэкенда, заменим на https)
+const BACKEND_URL = 'http://localhost:8000'; 
 
-        // Элементы навигации
-        document.getElementById('to-signup').addEventListener('click', () => {
-            signinScreen.classList.add('hidden');
-            signupScreen.classList.remove('hidden');
+const signinScreen = document.getElementById('signin-screen');
+const signupScreen = document.getElementById('signup-screen');
+const mainScreen = document.getElementById('main-screen');
+
+// Текущий токен авторизации (будет сохраняться в памяти после входа)
+let authToken = null;
+
+// Навигация между экранами
+document.getElementById('to-signup').addEventListener('click', () => {
+    signinScreen.classList.add('hidden');
+    signupScreen.classList.remove('hidden');
+});
+
+document.getElementById('to-signin').addEventListener('click', () => {
+    signupScreen.classList.add('hidden');
+    signinScreen.classList.remove('hidden');
+});
+
+// Функция переключения на главный экран
+function openMainScreen(name, clicks) {
+    signinScreen.classList.add('hidden');
+    signupScreen.classList.add('hidden');
+    mainScreen.classList.remove('hidden');
+    document.getElementById('greeting').innerText = `Привет, ${name}!`;
+    document.getElementById('counter').innerText = `Кликов: ${clicks}`;
+}
+
+// 1. РЕГИСТРАЦИЯ (Sign Up)
+document.getElementById('btn-signup').addEventListener('click', async () => {
+    const name = document.getElementById('signup-name').value;
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+
+    if (!name || !email || !password) return alert('Заполните все поля!');
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
         });
-
-        document.getElementById('to-signin').addEventListener('click', () => {
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert('Регистрация успешна! Теперь войдите.');
             signupScreen.classList.add('hidden');
             signinScreen.classList.remove('hidden');
-        });
-
-        // Функция переключения на главный экран (вход успешен)
-        function loginSuccess(name) {
-            signinScreen.classList.add('hidden');
-            signupScreen.classList.add('hidden');
-            mainScreen.classList.remove('hidden');
-            document.getElementById('greeting').innerText = `Привет, ${name}!`;
-        }
-
-        // Автоматический вход через Telegram данные
-        const user = tg.initDataUnsafe?.user;
-        if (user) {
-            document.getElementById('tg-auto-login').innerText = `Войти как ${user.first_name}`;
-            document.getElementById('tg-auto-login').addEventListener('click', () => {
-                loginSuccess(user.first_name);
-            });
         } else {
-            document.getElementById('tg-auto-login').classList.add('hidden');
+            alert(data.detail || 'Ошибка регистрации');
         }
+    } catch (err) {
+        alert('Не удалось связаться с сервером');
+    }
+});
 
-        // Обычный Sign In (имитация)
-        document.getElementById('btn-signin').addEventListener('click', () => {
-            const email = document.getElementById('signin-email').value;
-            if (email) {
-                loginSuccess(email.split('@')[0]); // берем часть до @ как имя
-            } else {
-                alert('Введите логин!');
+// 2. ВХОД (Sign In)
+document.getElementById('btn-signin').addEventListener('click', async () => {
+    const email = document.getElementById('signin-email').value;
+    const password = document.getElementById('signin-password').value;
+
+    if (!email || !password) return alert('Введите логин и пароль!');
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            authToken = data.token; // Сохраняем токен доступа
+            openMainScreen(data.user.name, data.user.clicks);
+        } else {
+            alert(data.detail || 'Неверный логин или пароль');
+        }
+    } catch (err) {
+        alert('Не удалось связаться с сервером');
+    }
+});
+
+// Быстрый вход подтягиванием юзера из TG
+const user = tg.initDataUnsafe?.user;
+if (user) {
+    document.getElementById('tg-auto-login').innerText = `Войти как ${user.first_name}`;
+    document.getElementById('tg-auto-login').addEventListener('click', async () => {
+        // Передаем initData для безопасной проверки на бэкенде
+        try {
+            const response = await fetch(`${BACKEND_URL}/auth/telegram`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    tg_id: user.id, 
+                    name: user.first_name,
+                    init_data: tg.initData 
+                })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                authToken = data.token;
+                openMainScreen(data.user.name, data.user.clicks);
+            }
+        } catch (err) {
+            alert('Ошибка авто-входа через Telegram');
+        }
+    });
+} else {
+    document.getElementById('tg-auto-login').classList.add('hidden');
+}
+
+// 3. ЛОГИКА КЛИКЕРА (Отправка кликов на сервер)
+const btn = document.getElementById('click-btn');
+const counterEl = document.getElementById('counter');
+
+btn.addEventListener('click', async () => {
+    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+
+    // Если мы вошли и у нас есть токен
+    if (!authToken) return;
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/click`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
             }
         });
+        const data = await response.json();
+        if (response.ok) {
+            counterEl.innerText = `Кликов: ${data.clicks}`;
+        }
+    } catch (err) {
+        console.error('Ошибка сохранения клика');
+    }
+});
 
-        // Обычный Sign Up (имитация)
-        document.getElementById('btn-signup').addEventListener('click', () => {
-            const name = document.getElementById('signup-name').value;
-            if (name) {
-                loginSuccess(name);
-            } else {
-                alert('Введите имя!');
-            }
-        });
-
-        // Выход из аккаунта
-        document.getElementById('btn-logout').addEventListener('click', () => {
-            mainScreen.classList.add('hidden');
-            signinScreen.classList.remove('hidden');
-        });
-
-        // Логика кликера
-        let count = 0;
-        const btn = document.getElementById('click-btn');
-        const counterEl = document.getElementById('counter');
-
-        btn.addEventListener('click', () => {
-            count++;
-            counterEl.innerText = `Кликов: ${count}`;
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('light');
-            }
-        });
+// Выход
+document.getElementById('btn-logout').addEventListener('click', () => {
+    authToken = null;
+    mainScreen.classList.add('hidden');
+    signinScreen.classList.remove('hidden');
+});
     </script>
 </body>
 </html>
