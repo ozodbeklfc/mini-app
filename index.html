@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My First Mini App</title>
+    <title>Mini App - Auth</title>
     <!-- Подключаем Telegram Web Apps API -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -18,37 +18,208 @@
             height: 100vh;
             margin: 0;
         }
+
+        .card {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            width: 85%;
+            max-width: 360px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #2481cc;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #666;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: #2481cc;
+        }
+
         button {
-            padding: 15px 30px;
-            font-size: 18px;
-            background-color: var(--tg-theme-button-color, #2481cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            background-color: #2481cc;
+            color: #ffffff;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            margin-top: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #1c6ba8;
+        }
+
+        .toggle-link {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .toggle-link span {
+            color: #2481cc;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        /* Класс для скрытия экранов */
+        .hidden {
+            display: none !important;
+        }
+
+        #tg-auto-login {
+            background-color: #2481cc;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
 
-    <h1 id="greeting">Привет!</h1>
-    <div id="counter">Кликов: 0</div>
-    <button id="click-btn">Нажми меня</button>
+    <!-- ЭКРАН 1: SIGN IN -->
+    <div id="signin-screen" class="card">
+        <h2>Войти в аккаунт</h2>
+        
+        <!-- Кнопка быстрого входа через TG -->
+        <button id="tg-auto-login">Войти через Telegram</button>
+        <p style="color: #aaa; font-size: 12px; margin: 10px 0;">или обычный вход</p>
+
+        <div class="input-group">
+            <label>Email / Логин</label>
+            <input type="text" id="signin-email" placeholder="example@mail.com">
+        </div>
+        <div class="input-group">
+            <label>Пароль</label>
+            <input type="password" id="signin-password" placeholder="••••••••">
+        </div>
+        <button id="btn-signin">Войти</button>
+        <div class="toggle-link">
+            Нет аккаунта? <span id="to-signup">Зарегистрироваться</span>
+        </div>
+    </div>
+
+    <!-- ЭКРАН 2: SIGN UP -->
+    <div id="signup-screen" class="card hidden">
+        <h2>Регистрация</h2>
+        <div class="input-group">
+            <label>Имя</label>
+            <input type="text" id="signup-name" placeholder="Иван">
+        </div>
+        <div class="input-group">
+            <label>Email</label>
+            <input type="email" id="signup-email" placeholder="example@mail.com">
+        </div>
+        <div class="input-group">
+            <label>Пароль</label>
+            <input type="password" id="signup-password" placeholder="••••••••">
+        </div>
+        <button id="btn-signup">Создать аккаунт</button>
+        <div class="toggle-link">
+            Уже есть аккаунт? <span id="to-signin">Войти</span>
+        </div>
+    </div>
+
+    <!-- ЭКРАН 3: ГЛАВНЫЙ ЭКРАН (КЛИКЕР) -->
+    <div id="main-screen" class="card hidden">
+        <h2 id="greeting">Привет!</h2>
+        <div id="counter" style="font-size: 18px; margin: 15px 0;">Кликов: 0</div>
+        <button id="click-btn">Нажми меня</button>
+        <button id="btn-logout" style="background-color: #e74c3c; margin-top: 30px; padding: 8px;">Выйти</button>
+    </div>
 
     <script>
-        // Инициализируем Telegram WebApp
         const tg = window.Telegram.WebApp;
-        tg.ready(); // Сообщаем Telegram, что приложение готово
-
-        // Расширяем на весь экран
+        tg.ready();
         tg.expand();
 
-        // Берем имя пользователя из Telegram
+        // Получаем элементы экранов
+        const signinScreen = document.getElementById('signin-screen');
+        const signupScreen = document.getElementById('signup-screen');
+        const mainScreen = document.getElementById('main-screen');
+
+        // Элементы навигации
+        document.getElementById('to-signup').addEventListener('click', () => {
+            signinScreen.classList.add('hidden');
+            signupScreen.classList.remove('hidden');
+        });
+
+        document.getElementById('to-signin').addEventListener('click', () => {
+            signupScreen.classList.add('hidden');
+            signinScreen.classList.remove('hidden');
+        });
+
+        // Функция переключения на главный экран (вход успешен)
+        function loginSuccess(name) {
+            signinScreen.classList.add('hidden');
+            signupScreen.classList.add('hidden');
+            mainScreen.classList.remove('hidden');
+            document.getElementById('greeting').innerText = `Привет, ${name}!`;
+        }
+
+        // Автоматический вход через Telegram данные
         const user = tg.initDataUnsafe?.user;
         if (user) {
-            document.getElementById('greeting').innerText = `Привет, ${user.first_name}!`;
+            document.getElementById('tg-auto-login').innerText = `Войти как ${user.first_name}`;
+            document.getElementById('tg-auto-login').addEventListener('click', () => {
+                loginSuccess(user.first_name);
+            });
+        } else {
+            document.getElementById('tg-auto-login').classList.add('hidden');
         }
+
+        // Обычный Sign In (имитация)
+        document.getElementById('btn-signin').addEventListener('click', () => {
+            const email = document.getElementById('signin-email').value;
+            if (email) {
+                loginSuccess(email.split('@')[0]); // берем часть до @ как имя
+            } else {
+                alert('Введите логин!');
+            }
+        });
+
+        // Обычный Sign Up (имитация)
+        document.getElementById('btn-signup').addEventListener('click', () => {
+            const name = document.getElementById('signup-name').value;
+            if (name) {
+                loginSuccess(name);
+            } else {
+                alert('Введите имя!');
+            }
+        });
+
+        // Выход из аккаунта
+        document.getElementById('btn-logout').addEventListener('click', () => {
+            mainScreen.classList.add('hidden');
+            signinScreen.classList.remove('hidden');
+        });
 
         // Логика кликера
         let count = 0;
@@ -58,8 +229,6 @@
         btn.addEventListener('click', () => {
             count++;
             counterEl.innerText = `Кликов: ${count}`;
-            
-            // Легкая вибрация телефона (Haptic Feedback)
             if (tg.HapticFeedback) {
                 tg.HapticFeedback.impactOccurred('light');
             }
