@@ -127,7 +127,7 @@
         <h2>Регистрация</h2>
         <div class="input-group">
             <label>Имя</label>
-            <input type="text" id="signup-name" placeholder="Иван">
+            <input type="text" id="signup-name" placeholder="Ozodbek">
         </div>
         <div class="input-group">
             <label>Логин</label>
@@ -156,17 +156,16 @@
 tg.ready();
 tg.expand();
 
-// Адрес нашего будущего локального бэкенда (когда запустим ngrok для бэкенда, заменим на https)
-const BACKEND_URL = 'http://localhost:3000/docs/faq#generating-an-ssh-key'; 
+// Укажи здесь свою ссылку из localhost.run (БЕЗ слэша на конце)
+const BACKEND_URL = 'https://localhost.run/docs/forever-free/'; 
 
 const signinScreen = document.getElementById('signin-screen');
 const signupScreen = document.getElementById('signup-screen');
 const mainScreen = document.getElementById('main-screen');
 
-// Текущий токен авторизации (будет сохраняться в памяти после входа)
 let authToken = null;
 
-// Навигация между экранами
+// Навигация
 document.getElementById('to-signup').addEventListener('click', () => {
     signinScreen.classList.add('hidden');
     signupScreen.classList.remove('hidden');
@@ -177,7 +176,6 @@ document.getElementById('to-signin').addEventListener('click', () => {
     signinScreen.classList.remove('hidden');
 });
 
-// Функция переключения на главный экран
 function openMainScreen(name, clicks) {
     signinScreen.classList.add('hidden');
     signupScreen.classList.add('hidden');
@@ -186,19 +184,19 @@ function openMainScreen(name, clicks) {
     document.getElementById('counter').innerText = `Кликов: ${clicks}`;
 }
 
-// 1. РЕГИСТРАЦИЯ (Sign Up)
+// 1. РЕГИСТРАЦИЯ
 document.getElementById('btn-signup').addEventListener('click', async () => {
     const name = document.getElementById('signup-name').value;
-    const email = document.getElementById('signup-email').value;
+    const login = document.getElementById('signup-login').value; // Изменено под поле Логин
     const password = document.getElementById('signup-password').value;
 
-    if (!name || !email || !password) return alert('Заполните все поля!');
+    if (!name || !login || !password) return alert('Заполните все поля!');
 
     try {
         const response = await fetch(`${BACKEND_URL}/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password })
+            body: JSON.stringify({ name, email: login, password }) // Отправляем login как email для бэкенда
         });
         const data = await response.json();
         
@@ -214,23 +212,23 @@ document.getElementById('btn-signup').addEventListener('click', async () => {
     }
 });
 
-// 2. ВХОД (Sign In)
+// 2. ВХОД
 document.getElementById('btn-signin').addEventListener('click', async () => {
-    const email = document.getElementById('signin-email').value;
+    const login = document.getElementById('signin-login').value; // Изменено под поле Логин
     const password = document.getElementById('signin-password').value;
 
-    if (!email || !password) return alert('Введите логин и пароль!');
+    if (!login || !password) return alert('Введите логин и пароль!');
 
     try {
         const response = await fetch(`${BACKEND_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email: login, password }) // Отправляем login как email
         });
         const data = await response.json();
 
         if (response.ok) {
-            authToken = data.token; // Сохраняем токен доступа
+            authToken = data.token;
             openMainScreen(data.user.name, data.user.clicks);
         } else {
             alert(data.detail || 'Неверный логин или пароль');
@@ -240,43 +238,12 @@ document.getElementById('btn-signin').addEventListener('click', async () => {
     }
 });
 
-// Быстрый вход подтягиванием юзера из TG
-const user = tg.initDataUnsafe?.user;
-if (user) {
-    document.getElementById('tg-auto-login').innerText = `Войти как ${user.first_name}`;
-    document.getElementById('tg-auto-login').addEventListener('click', async () => {
-        // Передаем initData для безопасной проверки на бэкенде
-        try {
-            const response = await fetch(`${BACKEND_URL}/auth/telegram`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    tg_id: user.id, 
-                    name: user.first_name,
-                    init_data: tg.initData 
-                })
-            });
-            const data = await response.json();
-            if (response.ok) {
-                authToken = data.token;
-                openMainScreen(data.user.name, data.user.clicks);
-            }
-        } catch (err) {
-            alert('Ошибка авто-входа через Telegram');
-        }
-    });
-} else {
-    document.getElementById('tg-auto-login').classList.add('hidden');
-}
-
-// 3. ЛОГИКА КЛИКЕРА (Отправка кликов на сервер)
+// 3. ЛОГИКА КЛИКЕРА
 const btn = document.getElementById('click-btn');
 const counterEl = document.getElementById('counter');
 
 btn.addEventListener('click', async () => {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-
-    // Если мы вошли и у нас есть токен
     if (!authToken) return;
 
     try {
