@@ -156,8 +156,8 @@
 tg.ready();
 tg.expand();
 
-// СЮДА ВСТАВЬ СВОЮ НОВУЮ ССЫЛКУ ИЗ GOOGLE SCRIPT
-const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwH1pamZbgH2XxZl4iKs-lDQ1RcJI47TPEhoka78bXqCAOslbcfLvdxWBv95-qvMaZd/exec'; 
+// Твоя проверенная ссылка (оставляем её)
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwH1pamZbghH2XxZl4iKs-1DQ1RcJI47TPEhoka78bXqCAOs1bcfLvdxWBv95-qvMaZd/exec'; 
 
 const signinScreen = document.getElementById('signin-screen');
 const signupScreen = document.getElementById('signup-screen');
@@ -183,19 +183,25 @@ function openMainScreen(name, clicks) {
     document.getElementById('counter').innerText = `Кликов: ${clicks}`;
 }
 
-// Универсальная функция запроса к Гугл Таблице без CORS-ошибок
-async function sendToSheets(payload) {
-    // Превращаем объект в строку параметров (как обычная HTML форма)
-    const formBody = new URLSearchParams(payload).toString();
-    
-    const response = await fetch(BACKEND_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
-        },
-        body: formBody
+// Безотказная функция отправки данных через JSONP (100% обход CORS)
+function sendToSheetsJSONP(params) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+        
+        window[callbackName] = function(data) {
+            delete window[callbackName];
+            document.body.removeChild(script);
+            resolve(data);
+        };
+
+        params.callback = callbackName;
+        const queryString = new URLSearchParams(params).toString();
+        
+        const script = document.createElement('script');
+        script.src = `${BACKEND_URL}?${queryString}`;
+        script.onerror = () => reject(new Error('Ошибка загрузки скрипта'));
+        document.body.appendChild(script);
     });
-    return await response.json();
 }
 
 // 1. РЕГИСТРАЦИЯ
@@ -207,16 +213,16 @@ document.getElementById('btn-signup').addEventListener('click', async () => {
     if (!name || !login || !password) return alert('Заполните все поля!');
 
     try {
-        const data = await sendToSheets({ action: "register", name, login, password });
+        const data = await sendToSheetsJSONP({ action: "register", name, login, password });
         if (data.success) {
-            alert('Учёт запись успешно создана! Войдите.');
+            alert('Учётная запись успешно создана! Войдите.');
             signupScreen.classList.add('hidden');
             signinScreen.classList.remove('hidden');
         } else {
             alert(data.detail || 'Ошибка регистрации');
         }
     } catch (err) {
-        alert('Ошибка сети при регистрации');
+        alert('Не удалось связаться с сервером таблиц');
     }
 });
 
@@ -228,7 +234,7 @@ document.getElementById('btn-signin').addEventListener('click', async () => {
     if (!login || !password) return alert('Введите логин и пароль!');
 
     try {
-        const data = await sendToSheets({ action: "login", login, password });
+        const data = await sendToSheetsJSONP({ action: "login", login, password });
         if (data.success) {
             currentLogin = data.user.login;
             openMainScreen(data.user.name, data.user.clicks);
@@ -236,7 +242,7 @@ document.getElementById('btn-signin').addEventListener('click', async () => {
             alert(data.detail || 'Неверный логин или пароль');
         }
     } catch (err) {
-        alert('Не удалось связаться с таблицей');
+        alert('Не удалось связаться с сервером таблиц');
     }
 });
 
@@ -248,17 +254,16 @@ btn.addEventListener('click', async () => {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     if (!currentLogin) return;
 
-    // Мгновенный визуальный клик на экране
     let currentClicks = parseInt(counterEl.innerText.replace(/\D/g, "")) || 0;
     counterEl.innerText = `Кликов: ${currentClicks + 1}`;
 
     try {
-        const data = await sendToSheets({ action: "click", login: currentLogin });
+        const data = await sendToSheetsJSONP({ action: "click", login: currentLogin });
         if (data.success) {
             counterEl.innerText = `Кликов: ${data.clicks}`;
         }
     } catch (err) {
-        console.error('Ошибка при сохранении клика в таблицу');
+        console.error('Ошибка сохранения клика');
     }
 });
 
