@@ -156,8 +156,8 @@
 tg.ready();
 tg.expand();
 
-// ТВОЯ ССЫЛКА ИЗ GOOGLE APPS SCRIPT
-const BACKEND_URL = 'https://script.google.com/macros/s/ЗАМЕНИ_НА_СВОЙ_ID/exec'; 
+// СЮДА ВСТАВЬ СВОЮ НОВУЮ ССЫЛКУ ИЗ GOOGLE SCRIPT
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwH1pamZbgH2XxZl4iKs-lDQ1RcJI47TPEhoka78bXqCAOslbcfLvdxWBv95-qvMaZd/exec'; 
 
 const signinScreen = document.getElementById('signin-screen');
 const signupScreen = document.getElementById('signup-screen');
@@ -183,6 +183,21 @@ function openMainScreen(name, clicks) {
     document.getElementById('counter').innerText = `Кликов: ${clicks}`;
 }
 
+// Универсальная функция запроса к Гугл Таблице без CORS-ошибок
+async function sendToSheets(payload) {
+    // Превращаем объект в строку параметров (как обычная HTML форма)
+    const formBody = new URLSearchParams(payload).toString();
+    
+    const response = await fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: formBody
+    });
+    return await response.json();
+}
+
 // 1. РЕГИСТРАЦИЯ
 document.getElementById('btn-signup').addEventListener('click', async () => {
     const name = document.getElementById('signup-name').value;
@@ -192,18 +207,16 @@ document.getElementById('btn-signup').addEventListener('click', async () => {
     if (!name || !login || !password) return alert('Заполните все поля!');
 
     try {
-        // Отправляем текстовый blob, чтобы обойти жесткие правила CORS в браузерах
-        await fetch(BACKEND_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ action: "register", name, login, password })
-        });
-        
-        alert('Учётная запись создана! Теперь войдите.');
-        signupScreen.classList.add('hidden');
-        signinScreen.classList.remove('hidden');
+        const data = await sendToSheets({ action: "register", name, login, password });
+        if (data.success) {
+            alert('Учёт запись успешно создана! Войдите.');
+            signupScreen.classList.add('hidden');
+            signinScreen.classList.remove('hidden');
+        } else {
+            alert(data.detail || 'Ошибка регистрации');
+        }
     } catch (err) {
-        alert('Ошибка при отправке данных');
+        alert('Ошибка сети при регистрации');
     }
 });
 
@@ -215,12 +228,7 @@ document.getElementById('btn-signin').addEventListener('click', async () => {
     if (!login || !password) return alert('Введите логин и пароль!');
 
     try {
-        const res = await fetch(BACKEND_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: "login", login, password })
-        });
-        const data = await res.json();
-
+        const data = await sendToSheets({ action: "login", login, password });
         if (data.success) {
             currentLogin = data.user.login;
             openMainScreen(data.user.name, data.user.clicks);
@@ -240,21 +248,17 @@ btn.addEventListener('click', async () => {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     if (!currentLogin) return;
 
-    // Сразу визуально увеличиваем клик для отзывчивости интерфейса
+    // Мгновенный визуальный клик на экране
     let currentClicks = parseInt(counterEl.innerText.replace(/\D/g, "")) || 0;
     counterEl.innerText = `Кликов: ${currentClicks + 1}`;
 
     try {
-        const res = await fetch(BACKEND_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: "click", login: currentLogin })
-        });
-        const data = await res.json();
+        const data = await sendToSheets({ action: "click", login: currentLogin });
         if (data.success) {
             counterEl.innerText = `Кликов: ${data.clicks}`;
         }
     } catch (err) {
-        console.error('Ошибка сохранения клика');
+        console.error('Ошибка при сохранении клика в таблицу');
     }
 });
 
