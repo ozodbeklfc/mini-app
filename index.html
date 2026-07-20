@@ -156,16 +156,14 @@
 tg.ready();
 tg.expand();
 
-// ВСТАВЬ СЮДА СВОЮ ССЫЛКУ ИЗ GOOGLE APPS SCRIPT
-const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwH1pamZbgH2XxZl4iKs-lDQ1RcJI47TPEhoka78bXqCAOslbcfLvdxWBv95-qvMaZd/exec'; 
+// ТВОЯ ССЫЛКА ИЗ GOOGLE APPS SCRIPT
+const BACKEND_URL = 'https://script.google.com/macros/s/ЗАМЕНИ_НА_СВОЙ_ID/exec'; 
 
 const signinScreen = document.getElementById('signin-screen');
 const signupScreen = document.getElementById('signup-screen');
 const mainScreen = document.getElementById('main-screen');
 
-// Вместо токена будем хранить логин вошедшего юзера
 let currentLogin = null;
-let currentName = null;
 
 document.getElementById('to-signup').addEventListener('click', () => {
     signinScreen.classList.add('hidden');
@@ -194,15 +192,14 @@ document.getElementById('btn-signup').addEventListener('click', async () => {
     if (!name || !login || !password) return alert('Заполните все поля!');
 
     try {
-        const response = await fetch(BACKEND_URL, {
+        // Отправляем текстовый blob, чтобы обойти жесткие правила CORS в браузерах
+        await fetch(BACKEND_URL, {
             method: 'POST',
-            mode: 'no-cors', // Позволяет обойти ограничения CORS для Google Scripts
-            headers: { 'Content-Type': 'application/json' },
+            mode: 'no-cors',
             body: JSON.stringify({ action: "register", name, login, password })
         });
         
-        // Так как режим 'no-cors' не возвращает ответ, сразу считаем успешным
-        alert('Запрос отправлен! Попробуйте войти.');
+        alert('Учётная запись создана! Теперь войдите.');
         signupScreen.classList.add('hidden');
         signinScreen.classList.remove('hidden');
     } catch (err) {
@@ -218,12 +215,6 @@ document.getElementById('btn-signin').addEventListener('click', async () => {
     if (!login || !password) return alert('Введите логин и пароль!');
 
     try {
-        // Для входа делаем обычный запрос, чтобы получить данные пользователя
-        const response = await fetch(`${BACKEND_URL}?login=${login}&password=${password}`); 
-        // Но так как doGet мы не писали, чтобы данные возвращались стабильно, 
-        // мы перепишем через POST. Гугл скрипты капризны к чтению POST с ответом, 
-        // поэтому воспользуемся хитростью: отправляем POST без no-cors
-        
         const res = await fetch(BACKEND_URL, {
             method: 'POST',
             body: JSON.stringify({ action: "login", login, password })
@@ -232,7 +223,6 @@ document.getElementById('btn-signin').addEventListener('click', async () => {
 
         if (data.success) {
             currentLogin = data.user.login;
-            currentName = data.user.name;
             openMainScreen(data.user.name, data.user.clicks);
         } else {
             alert(data.detail || 'Неверный логин или пароль');
@@ -250,6 +240,10 @@ btn.addEventListener('click', async () => {
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     if (!currentLogin) return;
 
+    // Сразу визуально увеличиваем клик для отзывчивости интерфейса
+    let currentClicks = parseInt(counterEl.innerText.replace(/\D/g, "")) || 0;
+    counterEl.innerText = `Кликов: ${currentClicks + 1}`;
+
     try {
         const res = await fetch(BACKEND_URL, {
             method: 'POST',
@@ -264,7 +258,6 @@ btn.addEventListener('click', async () => {
     }
 });
 
-// Выход
 document.getElementById('btn-logout').addEventListener('click', () => {
     currentLogin = null;
     mainScreen.classList.add('hidden');
